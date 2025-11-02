@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Preferences.h>
 
 // ====== CONFIG Wi-Fi ======
 const char* WIFI_SSID = "brisa-463544";
@@ -26,14 +27,21 @@ DHT dht(DHTPIN, DHTTYPE);
 const char* TOPIC_BTN = "IFCE_caua/botoes";
 const char* TOPIC_BUZZER_CONTROL = "IFCE_caua/buzzer_control";
 const char* TOPIC_BUZZER_STATUS = "IFCE_caua/buzzer_status";
-const char* TOPIC_LED_CONTROL = "IFCE_caua/led_control";      // NOVO: Controle do LED
+const char* TOPIC_LED_CONTROL = "IFCE_caua/led_control";
 const char* TOPIC_LED_STATUS = "IFCE_caua/led_status";
 const char* TOPIC_DISPLAY_MSG = "IFCE_caua/display_msg";
-const char* TOPIC_TEMP = "IFCE_caua/temperatura";             // NOVO
-const char* TOPIC_HUMIDITY = "IFCE_caua/umidade";             // NOVO
-const char* TOPIC_LUMINOSITY = "IFCE_caua/luminosidade";      // NOVO: Sensor LDR
-const char* TOPIC_ROULETTE_SPIN = "IFCE_caua/roulette_spin";  // NOVO: Roleta girando
-const char* TOPIC_ROULETTE_RESULT = "IFCE_caua/roulette_result"; // NOVO: Resultado da roleta
+const char* TOPIC_TEMP = "IFCE_caua/temperatura";
+const char* TOPIC_HUMIDITY = "IFCE_caua/umidade";
+const char* TOPIC_LUMINOSITY = "IFCE_caua/luminosidade";
+const char* TOPIC_ROULETTE_SPIN = "IFCE_caua/roulette_spin";
+const char* TOPIC_ROULETTE_RESULT = "IFCE_caua/roulette_result";
+const char* TOPIC_CREDITS = "IFCE_caua/credits";              // Créditos do jogador
+const char* TOPIC_BET = "IFCE_caua/bet";                      // Apostas
+const char* TOPIC_WIN = "IFCE_caua/win";                      // Vitórias
+const char* TOPIC_CASINO_STATUS = "IFCE_caua/casino_status";  // Status do cassino (locked/unlocked)
+const char* TOPIC_CASINO_REDIRECT = "IFCE_caua/casino_redirect"; // Comando para abrir casino no navegador
+const char* TOPIC_ACHIEVEMENTS = "IFCE_caua/achievements";    // Conquistas
+const char* TOPIC_STATS = "IFCE_caua/stats";                  // Estatísticas
 
 WiFiClient espClient;
 PubSubClient mqtt(espClient);
@@ -64,13 +72,13 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // ====== VARIÁVEIS ======
 bool lastBtn[6] = {HIGH, HIGH, HIGH, HIGH, HIGH, HIGH};
-unsigned long lastBtnPress[6] = {0, 0, 0, 0, 0, 0};  // Debounce timing
-const unsigned long DEBOUNCE_DELAY = 200;  // 200ms debounce
+unsigned long lastBtnPress[6] = {0, 0, 0, 0, 0, 0};
+const unsigned long DEBOUNCE_DELAY = 200;
 bool ledState = false;
-int currentRed = 0, currentGreen = 0, currentBlue = 0;  // Valores RGB atuais
+int currentRed = 0, currentGreen = 0, currentBlue = 0;
 unsigned long lastLedToggle = 0;
 unsigned long lastDisplayUpdate = 0;
-unsigned long lastSensorPublish = 0;  // NOVO: para publicar sensores
+unsigned long lastSensorPublish = 0;
 bool displayOK = false;
 String scrollingMsg = "";
 unsigned long scrollTimer = 0;
@@ -79,7 +87,313 @@ int scrollX = SCREEN_WIDTH;
 // Botões com funções específicas
 const char* BTN_NAMES[6] = {"CIMA", "BAIXO", "VOLTAR", "CONFIRMAR", "EXTRA1", "EXTRA2"};
 
+// ====== SISTEMA DE SENHA "KONAMI CODE" ======
+const int SECRET_SEQUENCE[] = {0, 0, 1, 1, 2, 3, 2, 3};  // CIMA, CIMA, BAIXO, BAIXO, VOLTAR, CONFIRMAR, VOLTAR, CONFIRMAR
+const int SECRET_LENGTH = 8;
+int currentSequence[SECRET_LENGTH];
+int sequenceIndex = 0;
+bool casinoActivated = false;   // Etapa 1: "casino hub" + LED vermelho
+bool casinoUnlocked = false;    // Etapa 2: Konami code completo
+unsigned long lastSequenceTime = 0;
+const unsigned long SEQUENCE_TIMEOUT = 3000;  // 3 segundos para completar a sequência
+
+// ====== ATIVAÇÃO DO CASSINO (REQUISITOS) ======
+bool casinoHubReceived = false;  // Recebeu mensagem "casino hub"
+bool ledIsRed = false;            // LED está vermelho (255, 0, 0)
+
+// ====== SISTEMA DE ECONOMIA ======
+Preferences preferences;
+unsigned long playerCredits = 1000;  // Créditos iniciais
+unsigned long totalBets = 0;
+unsigned long totalWins = 0;
+unsigned long gamesPlayed = 0;
+unsigned long biggestWin = 0;
+
+// ====== CONQUISTAS ======
+struct Achievement {
+  const char* name;
+  const char* description;
+  bool unlocked;
+  unsigned long requirement;
+};
+
+Achievement achievements[] = {
+  {"Primeiro Passo", "Faca sua primeira aposta", false, 1},
+  {"Sortudo", "Ganhe 5 jogos seguidos", false, 5},
+  {"Magnata", "Acumule 10.000 creditos", false, 10000},
+  {"Veterano", "Jogue 100 partidas", false, 100},
+  {"Jackpot", "Ganhe 1000 creditos em uma aposta", false, 1000},
+  {"Viciado", "Jogue 500 partidas", false, 500}
+};
+const int NUM_ACHIEVEMENTS = 6;
+
+// ====== MÚSICA DO BAÚ DE ZELDA ======
+// Notas: C, D, E, F, G, A, B
+#define NOTE_C4  262
+#define NOTE_CS4 277
+#define NOTE_D4  294
+#define NOTE_DS4 311
+#define NOTE_E4  330
+#define NOTE_F4  349
+#define NOTE_FS4 370
+#define NOTE_G4  392
+#define NOTE_GS4 415
+#define NOTE_A4  440
+#define NOTE_AS4 466
+#define NOTE_B4  494
+#define NOTE_C5  523
+#define NOTE_CS5 554
+#define NOTE_D5  587
+#define NOTE_DS5 622
+#define NOTE_E5  659
+#define NOTE_F5  698
+#define NOTE_FS5 740
+#define NOTE_G5  784
+#define NOTE_A5  880
+
+// Melodia do baú de Zelda
+int zeldaChestMelody[] = {NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_E5, NOTE_F5, NOTE_G5, NOTE_A5};
+int zeldaChestDurations[] = {200, 200, 200, 200, 200, 200, 200, 200, 600};
+
 // ====== FUNÇÕES ======
+
+// Toca a música do baú de Zelda
+// Verifica se o casino foi ativado (mensagem "casino hub" + LED vermelho)
+void checkCasinoActivation() {
+  if (casinoHubReceived && ledIsRed && !casinoActivated) {
+    casinoActivated = true;
+    
+    Serial.println("[CASINO] 🔓 MODO CASINO ATIVADO! Agora insira o Konami Code nos botões!");
+    
+    if (displayOK) {
+      display.clearDisplay();
+      display.setTextSize(2);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(10, 5);
+      display.println("CASINO");
+      display.setCursor(5, 25);
+      display.println("ATIVADO!");
+      display.setTextSize(1);
+      display.setCursor(0, 48);
+      display.println("Insira Konami Code:");
+      display.setCursor(0, 56);
+      display.println("^ ^ v v < > < >");
+      display.display();
+    }
+    
+    // Som de ativação
+    tone(BUZZER_PIN, 800, 200);
+    delay(250);
+    tone(BUZZER_PIN, 1000, 200);
+    delay(250);
+    tone(BUZZER_PIN, 1200, 400);
+    
+    // LED pisca verde para confirmar
+    setLEDColor(0, 255, 0);
+    delay(500);
+    setLEDColor(255, 0, 0);  // Volta pro vermelho
+  }
+}
+
+void playZeldaChestMusic() {
+  Serial.println("[CASINO] 🎵 Tocando musica do bau de Zelda!");
+  
+  for (int i = 0; i < 9; i++) {
+    tone(BUZZER_PIN, zeldaChestMelody[i], zeldaChestDurations[i]);
+    
+    // LED pisca em arco-íris durante a música
+    int r = (i % 3 == 0) ? 255 : 0;
+    int g = (i % 3 == 1) ? 255 : 0;
+    int b = (i % 3 == 2) ? 255 : 0;
+    setLEDColor(r, g, b);
+    
+    delay(zeldaChestDurations[i] + 50);
+  }
+  
+  // LED dourado no final
+  setLEDColor(255, 215, 0);
+  delay(500);
+}
+
+// Verifica se a sequência secreta foi inserida
+void checkSecretSequence(int buttonIndex) {
+  unsigned long now = millis();
+  
+  // Reset se passou muito tempo desde o último botão
+  if (now - lastSequenceTime > SEQUENCE_TIMEOUT) {
+    sequenceIndex = 0;
+  }
+  
+  lastSequenceTime = now;
+  
+  // Verifica se o botão está correto na sequência
+  if (buttonIndex == SECRET_SEQUENCE[sequenceIndex]) {
+    currentSequence[sequenceIndex] = buttonIndex;
+    sequenceIndex++;
+    
+    // Feedback visual
+    tone(BUZZER_PIN, 600 + (sequenceIndex * 100), 50);
+    
+    Serial.printf("[SEQUENCIA] Progresso: %d/%d\n", sequenceIndex, SECRET_LENGTH);
+    
+    // Sequência completa! (Só funciona se cassino foi ativado)
+    if (sequenceIndex >= SECRET_LENGTH) {
+      if (casinoActivated) {
+        casinoUnlocked = true;
+        sequenceIndex = 0;
+        
+        Serial.println("[CASINO] 🎰 DESBLOQUEADO! Bem-vindo ao Franzininho Casino!");
+        
+        // Toca a música do baú de Zelda
+        playZeldaChestMusic();
+        
+        // Mostra mensagem no display
+        if (displayOK) {
+          display.clearDisplay();
+          display.setTextSize(2);
+          display.setTextColor(SSD1306_WHITE);
+          display.setCursor(5, 10);
+          display.println("CASINO");
+          display.setCursor(0, 30);
+          display.println("UNLOCKED!");
+          display.setTextSize(1);
+          display.setCursor(10, 50);
+          display.printf("Credits:%lu", playerCredits);
+          display.display();
+          delay(3000);
+        }
+        
+        // Publica status e comando de redirecionamento
+        mqtt.publish(TOPIC_CASINO_STATUS, "UNLOCKED", true);
+        mqtt.publish(TOPIC_CASINO_REDIRECT, "OPEN", false); // Não retained - só válido uma vez
+        publishCredits();
+        
+        Serial.println("[CASINO] 🌐 Comando enviado: Abrindo casino no navegador...");
+      } else {
+        // Tentou Konami code mas não ativou o casino ainda
+        Serial.println("[CASINO] Você precisa ativar o modo casino primeiro!");
+        sequenceIndex = 0;
+      }
+    }
+  } else {
+    // Sequência errada - reset
+    if (sequenceIndex > 0) {
+      Serial.println("[SEQUENCIA] Errado! Resetando...");
+      tone(BUZZER_PIN, 200, 300);  // Som de erro
+      setLEDColor(255, 0, 0);  // LED vermelho
+      delay(300);
+      setLEDColor(0, 0, 0);
+    }
+    sequenceIndex = 0;
+  }
+}
+
+// Salva dados na memória
+void saveData() {
+  preferences.begin("casino", false);
+  preferences.putULong("credits", playerCredits);
+  preferences.putULong("totalBets", totalBets);
+  preferences.putULong("totalWins", totalWins);
+  preferences.putULong("gamesPlayed", gamesPlayed);
+  preferences.putULong("biggestWin", biggestWin);
+  
+  // Salva conquistas
+  for (int i = 0; i < NUM_ACHIEVEMENTS; i++) {
+    String key = "ach" + String(i);
+    preferences.putBool(key.c_str(), achievements[i].unlocked);
+  }
+  
+  preferences.end();
+  Serial.println("[SAVE] Dados salvos!");
+}
+
+// Carrega dados da memória
+void loadData() {
+  preferences.begin("casino", true);  // read-only
+  playerCredits = preferences.getULong("credits", 1000);  // 1000 créditos iniciais
+  totalBets = preferences.getULong("totalBets", 0);
+  totalWins = preferences.getULong("totalWins", 0);
+  gamesPlayed = preferences.getULong("gamesPlayed", 0);
+  biggestWin = preferences.getULong("biggestWin", 0);
+  
+  // Carrega conquistas
+  for (int i = 0; i < NUM_ACHIEVEMENTS; i++) {
+    String key = "ach" + String(i);
+    achievements[i].unlocked = preferences.getBool(key.c_str(), false);
+  }
+  
+  preferences.end();
+  Serial.printf("[LOAD] Creditos: %lu | Jogos: %lu | Vitorias: %lu\n", 
+                playerCredits, gamesPlayed, totalWins);
+}
+
+// Publica créditos
+void publishCredits() {
+  mqtt.publish(TOPIC_CREDITS, String(playerCredits).c_str());
+}
+
+// Publica estatísticas
+void publishStats() {
+  String stats = String(gamesPlayed) + "," + String(totalWins) + "," + 
+                 String(totalBets) + "," + String(biggestWin);
+  mqtt.publish(TOPIC_STATS, stats.c_str());
+}
+
+// Verifica e desbloqueia conquistas
+void checkAchievements() {
+  bool anyUnlocked = false;
+  
+  for (int i = 0; i < NUM_ACHIEVEMENTS; i++) {
+    if (achievements[i].unlocked) continue;
+    
+    bool unlock = false;
+    
+    switch(i) {
+      case 0: unlock = (totalBets >= 1); break;                    // Primeira aposta
+      case 1: unlock = false; break;                               // 5 vitórias seguidas (implementar contador)
+      case 2: unlock = (playerCredits >= 10000); break;            // 10k créditos
+      case 3: unlock = (gamesPlayed >= 100); break;                // 100 partidas
+      case 4: unlock = (biggestWin >= 1000); break;                // Jackpot 1000
+      case 5: unlock = (gamesPlayed >= 500); break;                // 500 partidas
+    }
+    
+    if (unlock) {
+      achievements[i].unlocked = true;
+      anyUnlocked = true;
+      
+      Serial.printf("[CONQUISTA] 🏆 %s desbloqueada!\n", achievements[i].name);
+      
+      // Feedback sonoro
+      int victoryMelody[] = {NOTE_C5, NOTE_E5, NOTE_G5, NOTE_C5};
+      for (int j = 0; j < 4; j++) {
+        tone(BUZZER_PIN, victoryMelody[j], 150);
+        delay(180);
+      }
+      
+      // Publica conquista
+      mqtt.publish(TOPIC_ACHIEVEMENTS, achievements[i].name);
+      
+      // Mostra no display
+      if (displayOK) {
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setCursor(0, 0);
+        display.println("CONQUISTA!");
+        display.setTextSize(1);
+        display.setCursor(0, 20);
+        display.println(achievements[i].name);
+        display.setCursor(0, 35);
+        display.println(achievements[i].description);
+        display.display();
+        delay(3000);
+      }
+    }
+  }
+  
+  if (anyUnlocked) {
+    saveData();
+  }
+}
 
 void connectWiFi() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -141,6 +455,16 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   msg.trim();
 
   Serial.printf("[MQTT] %s => %s\n", topic, msg.c_str());
+  
+  // Verifica se o cassino está desbloqueado (exceto para alguns comandos)
+  if (!casinoUnlocked && 
+      String(topic) != TOPIC_BUZZER_CONTROL && 
+      String(topic) != TOPIC_LED_CONTROL && 
+      String(topic) != TOPIC_DISPLAY_MSG) {
+    Serial.println("[CASINO] Bloqueado! Digite a sequencia secreta nos botoes.");
+    mqtt.publish(TOPIC_CASINO_STATUS, "LOCKED");
+    return;
+  }
 
   // ====== CONTROLE DO BUZZER ======
   if (String(topic) == TOPIC_BUZZER_CONTROL) {
@@ -177,6 +501,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       
       setLEDColor(r, g, b);
       
+      // Verifica se LED está vermelho (requisito 2 para ativar casino)
+      if (r == 255 && g == 0 && b == 0) {
+        ledIsRed = true;
+        Serial.println("[CASINO] ✓ LED vermelho detectado!");
+        checkCasinoActivation();
+      } else {
+        ledIsRed = false;
+      }
+      
       if (displayOK && scrollingMsg == "") {
         display.clearDisplay();
         display.setTextSize(1);
@@ -194,7 +527,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   // ====== MENSAGEM NO DISPLAY ======
   else if (String(topic) == TOPIC_DISPLAY_MSG) {
-    showScrollingMessage(msg);
+    // Verifica se é a mensagem secreta "casino hub" (requisito 1 para ativar casino)
+    if (msg.equalsIgnoreCase("casino hub")) {
+      casinoHubReceived = true;
+      Serial.println("[CASINO] ✓ Mensagem 'casino hub' detectada!");
+      showScrollingMessage("*** CASINO HUB ATIVANDO ***");
+      checkCasinoActivation();
+    } else {
+      showScrollingMessage(msg);
+    }
   }
 
   // ====== ROLETA - SPINNING ======
@@ -220,7 +561,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // ====== ROLETA - RESULTADO ======
   else if (String(topic) == TOPIC_ROULETTE_RESULT) {
     // Tocar melodia de vitória
-    int melody[] = {523, 659, 784, 1047}; // Dó, Mi, Sol, Dó (oitava acima)
+    int melody[] = {523, 659, 784, 1047};
     int noteDurations[] = {200, 200, 200, 400};
     
     for (int i = 0; i < 4; i++) {
@@ -238,8 +579,57 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       display.setCursor(5, 35);
       display.println(msg);
       display.display();
-      delay(3000); // Mostra resultado por 3 segundos
+      delay(3000);
     }
+  }
+  
+  // ====== APOSTA ======
+  else if (String(topic) == TOPIC_BET) {
+    unsigned long betAmount = msg.toInt();
+    
+    if (betAmount > playerCredits) {
+      Serial.println("[BET] Creditos insuficientes!");
+      mqtt.publish(TOPIC_CASINO_STATUS, "INSUFFICIENT_CREDITS");
+      tone(BUZZER_PIN, 200, 500);  // Som de erro
+      return;
+    }
+    
+    playerCredits -= betAmount;
+    totalBets += betAmount;
+    gamesPlayed++;
+    
+    Serial.printf("[BET] Aposta: %lu | Creditos restantes: %lu\n", betAmount, playerCredits);
+    
+    publishCredits();
+    saveData();
+    checkAchievements();
+  }
+  
+  // ====== VITÓRIA ======
+  else if (String(topic) == TOPIC_WIN) {
+    unsigned long winAmount = msg.toInt();
+    
+    playerCredits += winAmount;
+    totalWins++;
+    
+    if (winAmount > biggestWin) {
+      biggestWin = winAmount;
+    }
+    
+    Serial.printf("[WIN] Ganhou: %lu | Creditos: %lu\n", winAmount, playerCredits);
+    
+    // Animação de vitória
+    for (int i = 0; i < 5; i++) {
+      setLEDColor(255, 215, 0);  // Dourado
+      delay(100);
+      setLEDColor(0, 0, 0);
+      delay(100);
+    }
+    
+    publishCredits();
+    publishStats();
+    saveData();
+    checkAchievements();
   }
 }
 
@@ -249,10 +639,12 @@ void ensureMqtt() {
     if (mqtt.connect(clientId.c_str())) {
       Serial.println(" conectado!");
       mqtt.subscribe(TOPIC_BUZZER_CONTROL);
-      mqtt.subscribe(TOPIC_LED_CONTROL);      // NOVO
+      mqtt.subscribe(TOPIC_LED_CONTROL);
       mqtt.subscribe(TOPIC_DISPLAY_MSG);
-      mqtt.subscribe(TOPIC_ROULETTE_SPIN);    // NOVO: Roleta
-      mqtt.subscribe(TOPIC_ROULETTE_RESULT);  // NOVO: Roleta
+      mqtt.subscribe(TOPIC_ROULETTE_SPIN);
+      mqtt.subscribe(TOPIC_ROULETTE_RESULT);
+      mqtt.subscribe(TOPIC_BET);
+      mqtt.subscribe(TOPIC_WIN);
 
       if (displayOK) {
         display.clearDisplay();
@@ -281,38 +673,45 @@ void checkButtons() {
       if (now - lastBtnPress[i] > DEBOUNCE_DELAY) {
         lastBtnPress[i] = now;
         
-        String topic = String(TOPIC_BTN) + "/BOTAO_" + String(i + 1);
-        mqtt.publish(topic.c_str(), "PRESSIONADO");
-        Serial.printf("[BOTAO %d - %s] Pressionado\n", i + 1, BTN_NAMES[i]);
+        // Se cassino ativado mas não desbloqueado -> verifica Konami code
+        if (casinoActivated && !casinoUnlocked) {
+          checkSecretSequence(i);
+        } 
+        // Se cassino desbloqueado -> publica no MQTT para os jogos
+        else if (casinoUnlocked) {
+          String topic = String(TOPIC_BTN) + "/BOTAO_" + String(i + 1);
+          mqtt.publish(topic.c_str(), "PRESSIONADO");
+          Serial.printf("[BOTAO %d - %s] Pressionado\n", i + 1, BTN_NAMES[i]);
+          
+          // Feedback visual no display
+          if (displayOK && scrollingMsg == "") {
+            display.clearDisplay();
+            display.setTextSize(2);
+            display.setTextColor(SSD1306_WHITE);
+            display.setCursor(10, 15);
+            display.print("BTN ");
+            display.println(i + 1);
+            display.setTextSize(1);
+            display.setCursor(10, 35);
+            display.println(BTN_NAMES[i]);
+            display.display();
+            delay(300);
+          }
+        }
+        // Se cassino não ativado -> não faz nada (MQTT funciona normalmente)
+        else {
+          Serial.println("[CASINO] Modo normal - botoes sem funcao especial");
+        }
         
         // Feedback sonoro diferenciado
         if (i == 0 || i == 1) {
-          // BTN1 (CIMA) e BTN2 (BAIXO) - som curto de navegação
           tone(BUZZER_PIN, 800, 80);
         } else if (i == 2) {
-          // BTN3 (VOLTAR) - som grave de cancelar
           tone(BUZZER_PIN, 400, 150);
         } else if (i == 3) {
-          // BTN4 (CONFIRMAR) - som agudo de confirmação
           tone(BUZZER_PIN, 1200, 150);
         } else {
-          // BTN5 e BTN6 - som neutro
           tone(BUZZER_PIN, 700, 100);
-        }
-        
-        // Feedback visual no display
-        if (displayOK && scrollingMsg == "") {
-          display.clearDisplay();
-          display.setTextSize(2);
-          display.setTextColor(SSD1306_WHITE);
-          display.setCursor(10, 15);
-          display.print("BTN ");
-          display.println(i + 1);
-          display.setTextSize(1);
-          display.setCursor(10, 35);
-          display.println(BTN_NAMES[i]);
-          display.display();
-          delay(300); // Mostra por 300ms
         }
       }
     }
@@ -327,24 +726,40 @@ void updateDisplay() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   
-  display.setCursor(0, 0);
-  display.println("=== FRANZININHO ===");
-  
-  display.setCursor(0, 12);
-  display.print("WiFi: ");
-  display.println(WiFi.status() == WL_CONNECTED ? "OK" : "OFF");
-  
-  display.setCursor(0, 22);
-  display.print("MQTT: ");
-  display.println(mqtt.connected() ? "OK" : "OFF");
-  
-  display.setCursor(0, 32);
-  display.printf("RGB:%d,%d,%d", currentRed, currentGreen, currentBlue);
-  
-  display.setCursor(0, 42);
-  display.print("Uptime: ");
-  display.print(millis() / 1000);
-  display.println("s");
+  if (!casinoUnlocked) {
+    // Mostra mensagem de bloqueio
+    display.setCursor(0, 0);
+    display.println("=== FRANZININHO ===");
+    display.setCursor(0, 15);
+    display.println("CASINO BLOQUEADO");
+    display.setCursor(0, 30);
+    display.println("Digite sequencia");
+    display.setCursor(0, 40);
+    display.println("nos botoes...");
+    display.setCursor(0, 55);
+    display.printf("%d/%d", sequenceIndex, SECRET_LENGTH);
+  } else {
+    // Mostra informações do cassino
+    display.setCursor(0, 0);
+    display.println("=== CASINO ===");
+    
+    display.setCursor(0, 12);
+    display.printf("Creditos: %lu", playerCredits);
+    
+    display.setCursor(0, 22);
+    display.printf("Jogos: %lu", gamesPlayed);
+    
+    display.setCursor(0, 32);
+    display.printf("Vitorias: %lu", totalWins);
+    
+    display.setCursor(0, 42);
+    display.print("WiFi: ");
+    display.print(WiFi.status() == WL_CONNECTED ? "OK" : "OFF");
+    
+    display.setCursor(0, 52);
+    display.print("MQTT: ");
+    display.print(mqtt.connected() ? "OK" : "OFF");
+  }
   
   display.display();
 }
@@ -405,7 +820,9 @@ void setup() {
   delay(1000);
   Serial.println("\n\n=== Franzininho WiFi LAB - MQTT Controle ===");
   Serial.println("Autor: IkkiKuuro + Cauã");
-  Serial.println("Data: 2025-10-30");
+  Serial.println("Data: 2025-11-02");
+  Serial.println("\n[INFO] MQTT funcionando normalmente");
+  Serial.println("[INFO] Casino oculto - requer ativacao especial");
 
   pinMode(LED_R_PIN, OUTPUT);
   pinMode(LED_G_PIN, OUTPUT);
@@ -443,7 +860,15 @@ void setup() {
 
   dht.begin();
   
+  // Carrega dados salvos
+  loadData();
+  
+  // Publica status inicial do casino
+  mqtt.publish(TOPIC_CASINO_STATUS, "LOCKED", true);
+  Serial.println("[CASINO] Status inicial: LOCKED");
+  
   Serial.println("\n[SETUP] Concluído!");
+  Serial.println("[INFO] Casino oculto - requer ativacao especial");
 }
 
 // ====== LOOP ======
@@ -458,6 +883,13 @@ void loop() {
   if (now - lastSensorPublish > 5000) {
     lastSensorPublish = now;
     publishSensors();
+    
+    // Publica status do casino periodicamente
+    if (casinoUnlocked) {
+      mqtt.publish(TOPIC_CASINO_STATUS, "UNLOCKED", true); // Retained message
+    } else {
+      mqtt.publish(TOPIC_CASINO_STATUS, "LOCKED", true); // Retained message
+    }
   }
 
   // Atualiza display a cada 1 segundo

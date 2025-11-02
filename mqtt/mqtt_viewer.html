@@ -397,6 +397,45 @@
       .sensor-value { font-size: 2.5em; }
       .buttons-grid { grid-template-columns: repeat(2, 1fr); }
     }
+    
+    /* Notificação de Casino Desbloqueado */
+    .casino-unlock-notification {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.95), rgba(255, 165, 0, 0.95));
+      border: 3px solid #ffd700;
+      border-radius: 20px;
+      padding: 40px;
+      z-index: 10000;
+      text-align: center;
+      box-shadow: 0 0 100px rgba(255, 215, 0, 0.8), 0 0 200px rgba(255, 215, 0, 0.4);
+      animation: unlockPop 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+      max-width: 90%;
+    }
+    
+    @keyframes unlockPop {
+      0% { transform: translate(-50%, -50%) scale(0) rotate(-180deg); opacity: 0; }
+      60% { transform: translate(-50%, -50%) scale(1.1) rotate(10deg); }
+      100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+    }
+    
+    .casino-unlock-notification h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: 3em;
+      color: #000;
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.5);
+      animation: pulse 1s infinite;
+    }
+    
+    .casino-unlock-notification p {
+      font-size: 1.3em;
+      color: #333;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -416,11 +455,6 @@
         </div>
         <div class="status-item">
           <strong>BROKER:</strong> broker.hivemq.com
-        </div>
-        <div class="status-item">
-          <button class="btn btn-warning" onclick="window.location.href='casino_menu.html'" style="padding: 8px 16px; font-size: 0.9em;">
-            🎰 CASINO HUB
-          </button>
         </div>
       </div>
     </div>
@@ -646,6 +680,13 @@
             }
           });
         });
+        
+        // Inscrever no tópico especial de redirecionamento do casino
+        client.subscribe('IFCE_caua/casino_redirect', { qos: 0 }, (err) => {
+          if (!err) {
+            log('🎰 Monitorando desbloqueio do casino...', 'info');
+          }
+        });
       });
 
       client.on('message', handleMessage);
@@ -701,6 +742,49 @@
         const ledStatusEl = document.getElementById('ledStatus');
         ledStatusEl.textContent = message;
         ledStatusEl.className = message === 'LIGADOS' ? 'led-status led-on' : 'led-status led-off';
+      }
+      
+      // Casino Redirect - Abre automaticamente o menu do casino
+      else if (topic === 'IFCE_caua/casino_redirect' && message === 'OPEN') {
+        log('🎰 CASINO DESBLOQUEADO! Redirecionando...', 'success');
+        
+        // Cria notificação animada
+        const notification = document.createElement('div');
+        notification.className = 'casino-unlock-notification';
+        notification.innerHTML = `
+          <h2>🎰 CASINO DESBLOQUEADO! 🎰</h2>
+          <p>✨ Redirecionando para o hub...</p>
+          <div style="font-size: 3em; margin-top: 20px;">🍀💰🎲</div>
+        `;
+        document.body.appendChild(notification);
+        
+        // Som de sucesso
+        try {
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const notes = [523, 659, 784, 1047]; // C, E, G, C (acorde maior)
+          notes.forEach((freq, i) => {
+            setTimeout(() => {
+              const osc = audioContext.createOscillator();
+              const gain = audioContext.createGain();
+              osc.connect(gain);
+              gain.connect(audioContext.destination);
+              osc.frequency.value = freq;
+              gain.gain.value = 0.3;
+              gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+              osc.start();
+              osc.stop(audioContext.currentTime + 0.5);
+            }, i * 100);
+          });
+        } catch(e) {}
+        
+        // Redireciona após 3 segundos
+        setTimeout(() => {
+          document.body.style.transition = 'opacity 0.5s';
+          document.body.style.opacity = '0';
+          setTimeout(() => {
+            window.location.href = 'casino_menu.html';
+          }, 500);
+        }, 3000);
       }
     }
 

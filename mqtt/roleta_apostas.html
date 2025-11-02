@@ -29,7 +29,26 @@
       min-height: 100vh;
       padding: 20px;
       color: #e0e0e0;
+      overflow-y: auto;
       overflow-x: hidden;
+    }
+    
+    /* Estilo da barra de scroll */
+    ::-webkit-scrollbar {
+      width: 12px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 1px solid rgba(0, 255, 255, 0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #00ffff, #ff00ff);
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #ff00ff, #00ffff);
+      box-shadow: 0 0 20px rgba(255, 0, 255, 0.8);
     }
     body::before {
       content: '';
