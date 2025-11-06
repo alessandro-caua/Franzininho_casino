@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>🎰 Exemplo - Casino Core Library</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  
+  <!-- MQTT Library -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  
+  <!-- Casino Core Library -->
+  <script src="casino-core.js"></script>
+  
+  <style>
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Orbitron', monospace;
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #00ffff;
+      text-align: center;
+      margin-bottom: 30px;
+      text-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+    }
+    .demo-section {
+      background: rgba(15, 15, 25, 0.95);
+      border: 2px solid rgba(0, 255, 255, 0.3);
+      border-radius: 15px;
+      padding: 25px;
+      margin: 20px 0;
+    }
+    .demo-title {
+      color: #00ffff;
+      font-size: 1.3em;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #00ffff;
+      padding-bottom: 10px;
+    }
+    .btn {
+      padding: 12px 24px;
+      border: 2px solid #00ffff;
+      border-radius: 8px;
+      background: rgba(0, 255, 255, 0.1);
+      color: #00ffff;
+      cursor: pointer;
+      font-family: 'Orbitron', monospace;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin: 5px;
+      transition: all 0.3s ease;
+    }
+    .btn:hover {
+      background: rgba(0, 255, 255, 0.3);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+    }
+    .status {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid #00ffff;
+    }
+    code {
+      background: rgba(0, 0, 0, 0.7);
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #00ff41;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎰 CASINO CORE LIBRARY - DEMO</h1>
+    
+    <!-- MQTT Connection -->
+    <div class="demo-section">
+      <div class="demo-title">1. CONEXÃO MQTT</div>
+      <p>Clique para conectar ao broker MQTT:</p>
+      <button class="btn" onclick="connectMQTT()">🔌 CONECTAR</button>
+      <button class="btn" onclick="disconnectMQTT()">🔌 DESCONECTAR</button>
+      <div class="status" id="mqttStatus">
+        <strong>Status:</strong> Aguardando conexão...
+      </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="demo-section">
+      <div class="demo-title">2. NOTIFICAÇÕES TOAST</div>
+      <p>Teste os diferentes tipos de notificações:</p>
+      <button class="btn" style="border-color: #00ff41; color: #00ff41;" onclick="toast.success('Operação realizada com sucesso!')">
+        ✅ SUCESSO
+      </button>
+      <button class="btn" style="border-color: #ff0055; color: #ff0055;" onclick="toast.error('Erro ao processar solicitação!')">
+        ❌ ERRO
+      </button>
+      <button class="btn" style="border-color: #ffaa00; color: #ffaa00;" onclick="toast.warning('Atenção! Créditos baixos.')">
+        ⚠️ AVISO
+      </button>
+      <button class="btn" onclick="toast.info('Informação importante aqui.')">
+        ℹ️ INFO
+      </button>
+    </div>
+
+    <!-- MQTT Publish -->
+    <div class="demo-section">
+      <div class="demo-title">3. PUBLICAR COMANDOS</div>
+      <p>Teste enviar comandos para o ESP32:</p>
+      <button class="btn" onclick="sendLED('255,0,0')">🔴 LED VERMELHO</button>
+      <button class="btn" onclick="sendLED('0,255,0')">🟢 LED VERDE</button>
+      <button class="btn" onclick="sendLED('0,0,255')">🔵 LED AZUL</button>
+      <button class="btn" onclick="sendBuzzer(1000)">🔊 BUZZER 1000Hz</button>
+    </div>
+
+    <!-- Helper Functions -->
+    <div class="demo-section">
+      <div class="demo-title">4. FUNÇÕES AUXILIARES</div>
+      <p>Teste as funções utilitárias:</p>
+      <button class="btn" onclick="testHexToRgb()">🎨 Hex → RGB</button>
+      <button class="btn" onclick="testFormatNumber()">🔢 Formatar Número</button>
+      <button class="btn" onclick="testPlaySound()">🔊 Tocar Som</button>
+      <div class="status" id="utilsResult">
+        <strong>Resultado:</strong> Aguardando teste...
+      </div>
+    </div>
+
+    <!-- Code Example -->
+    <div class="demo-section">
+      <div class="demo-title">5. EXEMPLO DE CÓDIGO</div>
+      <pre style="background: #000; padding: 15px; border-radius: 8px; overflow-x: auto; color: #00ff41; font-size: 0.9em;">
+<code>// Inicializar MQTT
+const mqtt = new CasinoMQTT({
+  clientId: 'meu-jogo-123'
+});
+
+await mqtt.connect();
+
+// Subscrever tópicos
+mqtt.subscribe('IFCE_caua/credits', (msg) => {
+  console.log('Créditos:', msg);
+  toast.success(`Créditos atualizados: ${msg}`);
+});
+
+// Publicar comando
+mqtt.publish('IFCE_caua/led_control', '255,0,0');
+
+// Notificações
+toast.success('Você ganhou!');
+toast.error('Créditos insuficientes!');
+
+// Utils
+const rgb = casinoUtils.hexToRgb('#ff0055');
+const formatted = casinoUtils.formatNumber(1000000);
+casinoUtils.playSound(800, 150);</code></pre>
+    </div>
+  </div>
+
+  <script>
+    let casinoMQTT = null;
+
+    async function connectMQTT() {
+      try {
+        if (casinoMQTT && casinoMQTT.isConnected) {
+          toast.warning('Já está conectado!');
+          return;
+        }
+
+        casinoMQTT = new CasinoMQTT({
+          clientId: 'demo-' + Math.random().toString(16).slice(2, 8)
+        });
+
+        await casinoMQTT.connect();
+        
+        // Subscreve alguns tópicos para demonstração
+        casinoMQTT.subscribe('IFCE_caua/credits', (msg) => {
+          document.getElementById('mqttStatus').innerHTML = 
+            `<strong>Status:</strong> Conectado ✅<br>
+             <strong>Último crédito recebido:</strong> ${msg}`;
+        });
+
+        casinoMQTT.subscribe('IFCE_caua/botoes/#', (msg, topic) => {
+          const button = topic.split('/').pop();
+          toast.info(`Botão ${button} pressionado!`);
+        });
+
+        document.getElementById('mqttStatus').innerHTML = 
+          '<strong>Status:</strong> Conectado ✅<br>Aguardando mensagens...';
+
+      } catch (error) {
+        toast.error('Erro ao conectar: ' + error.message);
+        document.getElementById('mqttStatus').innerHTML = 
+          '<strong>Status:</strong> Erro de conexão ❌';
+      }
+    }
+
+    function disconnectMQTT() {
+      if (casinoMQTT) {
+        casinoMQTT.disconnect();
+        casinoMQTT = null;
+        document.getElementById('mqttStatus').innerHTML = 
+          '<strong>Status:</strong> Desconectado';
+        toast.info('Desconectado do servidor');
+      } else {
+        toast.warning('Não está conectado!');
+      }
+    }
+
+    function sendLED(rgb) {
+      if (!casinoMQTT || !casinoMQTT.isConnected) {
+        toast.error('Conecte ao MQTT primeiro!');
+        return;
+      }
+
+      casinoMQTT.publish('IFCE_caua/led_control', rgb);
+      toast.success(`LED configurado: RGB(${rgb})`);
+    }
+
+    function sendBuzzer(freq) {
+      if (!casinoMQTT || !casinoMQTT.isConnected) {
+        toast.error('Conecte ao MQTT primeiro!');
+        return;
+      }
+
+      casinoMQTT.publish('IFCE_caua/buzzer_control', String(freq));
+      toast.success(`Buzzer tocando em ${freq}Hz`);
+      
+      // Toca também no navegador
+      casinoUtils.playSound(freq, 300);
+    }
+
+    function testHexToRgb() {
+      const hex = '#ff0055';
+      const rgb = casinoUtils.hexToRgb(hex);
+      document.getElementById('utilsResult').innerHTML = 
+        `<strong>Resultado:</strong> ${hex} → RGB(${rgb})`;
+      toast.info(`Convertido: ${hex} → RGB(${rgb})`);
+    }
+
+    function testFormatNumber() {
+      const num = 1234567;
+      const formatted = casinoUtils.formatNumber(num);
+      document.getElementById('utilsResult').innerHTML = 
+        `<strong>Resultado:</strong> ${num} → ${formatted}`;
+      toast.info(`Formatado: ${num} → ${formatted}`);
+    }
+
+    function testPlaySound() {
+      // Toca uma sequência de notas
+      const notes = [262, 294, 330, 349, 392]; // C D E F G
+      notes.forEach((freq, i) => {
+        setTimeout(() => {
+          casinoUtils.playSound(freq, 200);
+        }, i * 250);
+      });
+      document.getElementById('utilsResult').innerHTML = 
+        '<strong>Resultado:</strong> Tocando melodia (C D E F G)';
+      toast.info('Tocando melodia de teste!');
+    }
+  </script>
+</body>
+</html>
