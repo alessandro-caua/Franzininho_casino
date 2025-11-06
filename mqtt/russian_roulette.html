@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>💀 ROLETA RUSSA - Franzininho Casino</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { 
+      font-family: 'Rajdhani', sans-serif;
+      --cyan: #00ffff;
+      --magenta: #ff00ff;
+      --green: #00ff41;
+      --red: #ff0055;
+      --yellow: #ffaa00;
+      --dark: #0a0a0f;
+    }
+    body { 
+      background: #0a0a0f;
+      background-image: 
+        repeating-linear-gradient(0deg, rgba(255, 0, 85, 0.03) 0px, transparent 1px, transparent 2px, rgba(255, 0, 85, 0.03) 3px),
+        repeating-linear-gradient(90deg, rgba(255, 0, 85, 0.03) 0px, transparent 1px, transparent 2px, rgba(255, 0, 85, 0.03) 3px),
+        radial-gradient(circle at 50% 50%, rgba(255, 0, 85, 0.15) 0%, transparent 50%);
+      background-size: 50px 50px, 50px 50px, 100% 100%;
+      min-height: 100vh;
+      padding: 20px;
+      color: #e0e0e0;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    
+    /* Estilo da barra de scroll */
+    ::-webkit-scrollbar {
+      width: 12px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 1px solid rgba(255, 0, 85, 0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #ff0055, #8b0000);
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #8b0000, #ff0055);
+      box-shadow: 0 0 20px rgba(255, 0, 85, 0.8);
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(transparent 50%, rgba(255, 0, 85, 0.02) 50%);
+      background-size: 4px 4px;
+      pointer-events: none;
+      z-index: 1;
+      animation: scanlines 10s linear infinite;
+    }
+    @keyframes scanlines {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(4px); }
+    }
+
+    /* Loading Screen */
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0a0a0f;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+    .loading-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .loading-gun {
+      width: 200px;
+      height: 200px;
+      position: relative;
+      animation: gunSpin 3s linear infinite;
+    }
+    .loading-gun::before {
+      content: '🔫';
+      font-size: 6em;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      filter: drop-shadow(0 0 30px rgba(255, 0, 85, 0.8));
+    }
+    @keyframes gunSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-text {
+      font-family: 'Orbitron', monospace;
+      font-size: 2em;
+      font-weight: 900;
+      color: var(--red);
+      margin-top: 40px;
+      text-transform: uppercase;
+      letter-spacing: 5px;
+      text-shadow: 0 0 20px rgba(255, 0, 85, 0.8);
+      animation: textGlow 2s ease-in-out infinite;
+    }
+    @keyframes textGlow {
+      0%, 100% { 
+        text-shadow: 0 0 10px rgba(255, 0, 85, 0.8);
+      }
+      50% { 
+        text-shadow: 0 0 30px rgba(255, 0, 85, 1);
+      }
+    }
+
+    .content-wrapper {
+      opacity: 0;
+      transform: scale(0.95);
+      animation: fadeInContent 0.8s ease forwards;
+      animation-delay: 2s;
+    }
+    @keyframes fadeInContent {
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+    }
+    h1 {
+      font-family: 'Orbitron', monospace;
+      color: var(--red);
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 3.5em;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 8px;
+      text-shadow: 
+        0 0 10px rgba(255, 0, 85, 0.8),
+        0 0 20px rgba(255, 0, 85, 0.6),
+        0 0 30px rgba(255, 0, 85, 0.4);
+      animation: glowPulse 3s ease-in-out infinite;
+    }
+    @keyframes glowPulse {
+      0%, 100% { 
+        text-shadow: 
+          0 0 10px rgba(255, 0, 85, 0.8),
+          0 0 20px rgba(255, 0, 85, 0.6);
+      }
+      50% { 
+        text-shadow: 
+          0 0 20px rgba(255, 0, 85, 1),
+          0 0 40px rgba(255, 0, 85, 0.8),
+          0 0 60px rgba(255, 0, 85, 0.6);
+      }
+    }
+    .subtitle {
+      font-family: 'Orbitron', monospace;
+      text-align: center;
+      color: var(--yellow);
+      margin-bottom: 20px;
+      font-size: 1.3em;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-shadow: 0 0 10px rgba(255, 170, 0, 0.8);
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding: 15px 20px;
+      background: rgba(15, 15, 25, 0.95);
+      border: 2px solid rgba(255, 0, 85, 0.3);
+      border-radius: 15px;
+      box-shadow: 0 0 30px rgba(255, 0, 85, 0.2);
+    }
+    .btn {
+      padding: 12px 24px;
+      border: 2px solid;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 1em;
+      font-weight: 700;
+      font-family: 'Orbitron', monospace;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      text-shadow: 0 0 5px currentColor;
+      background: none;
+    }
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.5s, height 0.5s;
+    }
+    .btn:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 20px currentColor;
+    }
+    .btn-back {
+      color: var(--cyan);
+      border-color: var(--cyan);
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+    }
+    .btn-start {
+      color: var(--red);
+      border-color: var(--red);
+      box-shadow: 0 0 15px rgba(255, 0, 85, 0.3);
+      font-size: 1.2em;
+      padding: 15px 40px;
+    }
+    .btn-fire {
+      color: var(--red);
+      border-color: var(--red);
+      box-shadow: 0 0 15px rgba(255, 0, 85, 0.3);
+      font-size: 1.3em;
+      padding: 20px 40px;
+      animation: fireButton 1s ease-in-out infinite;
+    }
+    @keyframes fireButton {
+      0%, 100% { box-shadow: 0 0 15px rgba(255, 0, 85, 0.3); }
+      50% { box-shadow: 0 0 30px rgba(255, 0, 85, 0.8); }
+    }
+    .btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr 280px;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: rgba(15, 15, 25, 0.95);
+      border-radius: 15px;
+      padding: 20px;
+      border: 2px solid rgba(255, 0, 85, 0.3);
+      box-shadow: 
+        0 0 20px rgba(255, 0, 85, 0.2),
+        inset 0 0 15px rgba(255, 0, 85, 0.05);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.3em;
+      margin-bottom: 15px;
+      color: var(--red);
+      border-bottom: 2px solid var(--red);
+      padding-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
+    }
+
+    .player-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .player-card {
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid;
+      border-radius: 10px;
+      padding: 15px;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .player-card.active {
+      box-shadow: 0 0 25px currentColor;
+      transform: scale(1.05);
+      animation: activePulse 1.5s ease-in-out infinite;
+    }
+
+    .player-card.dead {
+      opacity: 0.3;
+      filter: grayscale(1);
+    }
+
+    .player-card.dead::after {
+      content: '💀 ELIMINADO';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: 1.2em;
+      color: var(--red);
+      text-shadow: 0 0 10px rgba(255, 0, 85, 0.8);
+    }
+
+    @keyframes activePulse {
+      0%, 100% { box-shadow: 0 0 20px currentColor; }
+      50% { box-shadow: 0 0 35px currentColor; }
+    }
+
+    .player-name {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.1em;
+      font-weight: 700;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .player-lives {
+      display: flex;
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    .life-icon {
+      font-size: 1.5em;
+    }
+
+    .add-player-btn {
+      width: 100%;
+      padding: 15px;
+      margin-top: 10px;
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .gun-display {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .gun-icon {
+      font-size: 8em;
+      animation: gunFloat 2s ease-in-out infinite;
+      filter: drop-shadow(0 0 30px rgba(255, 0, 85, 0.6));
+    }
+
+    @keyframes gunFloat {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+
+    .chamber-display {
+      margin-top: 30px;
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .bullet {
+      width: 50px;
+      height: 70px;
+      background: linear-gradient(135deg, #ffd700, #ff8c00);
+      border-radius: 10px 10px 50% 50%;
+      border: 2px solid #ff6600;
+      box-shadow: 0 4px 10px rgba(255, 140, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5em;
+      position: relative;
+      animation: bulletShine 2s ease-in-out infinite;
+    }
+
+    .bullet.used {
+      opacity: 0.3;
+    }
+    
+    .bullet.revealed-live {
+      background: linear-gradient(135deg, #ff0055, #ff6600);
+      box-shadow: 0 4px 15px rgba(255, 0, 85, 0.8);
+    }
+
+    .bullet.revealed-blank {
+      background: linear-gradient(135deg, #888, #444);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    @keyframes bulletShine {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .target-selection {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .target-btn {
+      padding: 20px;
+      border: 3px solid;
+      border-radius: 15px;
+      cursor: pointer;
+      font-family: 'Orbitron', monospace;
+      font-weight: 700;
+      font-size: 1.2em;
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .target-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 25px currentColor;
+    }
+
+    .target-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .game-info {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 20px;
+      border-radius: 10px;
+      border: 2px solid rgba(255, 0, 85, 0.3);
+      margin-bottom: 20px;
+    }
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      margin: 10px 0;
+      font-family: 'Orbitron', monospace;
+    }
+
+    .info-label {
+      color: var(--yellow);
+      font-weight: 700;
+    }
+
+    .info-value {
+      color: var(--red);
+      font-weight: 900;
+      font-size: 1.2em;
+    }
+
+    .round-result {
+      font-family: 'Orbitron', monospace;
+      font-size: 2em;
+      font-weight: 900;
+      text-align: center;
+      padding: 30px;
+      margin: 20px 0;
+      border-radius: 15px;
+      text-transform: uppercase;
+      animation: resultPulse 0.5s ease;
+    }
+
+    @keyframes resultPulse {
+      0% { transform: scale(0.8); opacity: 0; }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes suspensePulse {
+      0%, 100% { 
+        box-shadow: 0 0 20px rgba(255, 170, 0, 0.5);
+        transform: scale(1);
+      }
+      50% { 
+        box-shadow: 0 0 40px rgba(255, 170, 0, 0.9);
+        transform: scale(1.05);
+      }
+    }
+
+    .round-result.hit {
+      background: rgba(255, 0, 85, 0.3);
+      border: 3px solid var(--red);
+      color: var(--red);
+      text-shadow: 0 0 20px rgba(255, 0, 85, 0.8);
+    }
+
+    .round-result.miss {
+      background: rgba(136, 136, 136, 0.3);
+      border: 3px solid #888;
+      color: #ccc;
+      text-shadow: 0 0 20px rgba(136, 136, 136, 0.8);
+    }
+
+    @media (max-width: 1200px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+      h1 {
+        font-size: 2em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div class="loading-screen" id="loadingScreen">
+    <div class="loading-gun"></div>
+    <div class="loading-text">CARREGANDO ARMA...</div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content-wrapper">
+    <div class="container">
+      <h1>💀 ROLETA RUSSA 💀</h1>
+      <p class="subtitle">[ BUCKSHOT ROULETTE - SOBREVIVA E GANHE ]</p>
+
+      <div class="top-bar">
+        <button class="btn btn-back" onclick="window.location.href='casino_menu.html'">
+          ← VOLTAR AO MENU
+        </button>
+        <div style="font-family: 'Orbitron', monospace; font-size: 1.2em; color: var(--red);">
+          <span id="statusIndicator">●</span> <span id="statusText">CONECTANDO...</span>
+        </div>
+        <button class="btn btn-start" id="startGameBtn" onclick="startGame()">
+          ▶ INICIAR JOGO
+        </button>
+      </div>
+
+      <div class="main-grid">
+        <!-- Players Panel -->
+        <div class="card">
+          <div class="card-title">👥 JOGADORES</div>
+          <div class="player-list" id="playerList">
+            <!-- Players will be added here -->
+          </div>
+          <button class="btn add-player-btn" id="addPlayerBtn" onclick="addPlayer()">
+            ➕ ADICIONAR JOGADOR
+          </button>
+        </div>
+
+        <!-- Game Area -->
+        <div>
+          <div class="game-info" id="gameInfo" style="display: none;">
+            <div class="info-item">
+              <span class="info-label">RODADA:</span>
+              <span class="info-value" id="roundNumber">1</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">BALAS RESTANTES:</span>
+              <span class="info-value" id="bulletsLeft">0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">PRÊMIO:</span>
+              <span class="info-value">2000 💎</span>
+            </div>
+          </div>
+
+          <div class="gun-display">
+            <div class="gun-icon">🔫</div>
+            <div class="chamber-display" id="chamberDisplay">
+              <!-- Bullets will appear here -->
+            </div>
+          </div>
+
+          <div id="roundResult"></div>
+
+          <!-- Target Selection -->
+          <div id="targetSelection" style="display: none;">
+            <div class="card-title" style="text-align: center; margin-bottom: 20px;">🎯 ESCOLHA SEU ALVO</div>
+            <div class="target-selection" id="targetButtons">
+              <!-- Target buttons will be created here -->
+            </div>
+            <button class="btn btn-fire" id="fireBtn" onclick="fire()" style="width: 100%; margin-top: 20px;" disabled>
+              💥 ATIRAR!
+            </button>
+          </div>
+        </div>
+
+        <!-- Game Stats -->
+        <div class="card">
+          <div class="card-title">📊 ESTATÍSTICAS</div>
+          <div class="game-info">
+            <div class="info-item">
+              <span class="info-label">VIVOS:</span>
+              <span class="info-value" id="playersAlive">0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">ELIMINADOS:</span>
+              <span class="info-value" id="playersDead">0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">TIROS:</span>
+              <span class="info-value" id="totalShots">0</span>
+            </div>
+          </div>
+          <div id="gameLog" style="margin-top: 20px; max-height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.9em; color: #888;">
+            <!-- Game log -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // MQTT Setup
+    const MQTT_HOST = 'broker.hivemq.com';
+    const MQTT_PORT = 8000;
+    const clientId = 'franzininho-russian-' + Math.random().toString(16).slice(2, 10);
+    const TOPIC_PLAYER_TURN = 'IFCE_caua/russian_turn';
+    const TOPIC_SHOT_RESULT = 'IFCE_caua/russian_shot';
+    const TOPIC_GAME_END = 'IFCE_caua/russian_end';
+    
+    let mqttClient;
+    let players = [];
+    let currentPlayerIndex = 0;
+    let gameStarted = false;
+    let chamber = [];
+    let selectedTarget = null;
+    let roundNumber = 1;
+    let totalShots = 0;
+
+    // Player colors
+    const playerColors = ['#ff0055', '#00ff41', '#0080ff', '#ffaa00'];
+
+    // Initialize MQTT
+    function initMQTT() {
+      mqttClient = mqtt.connect(`ws://${MQTT_HOST}:${MQTT_PORT}/mqtt`);
+      
+      mqttClient.on('connect', () => {
+        document.getElementById('statusText').textContent = 'ONLINE';
+        document.getElementById('statusIndicator').style.color = 'var(--green)';
+        mqttClient.subscribe('IFCE_caua/botoes/#');
+        console.log('MQTT Connected');
+      });
+
+      mqttClient.on('message', (topic, message) => {
+        handleButtonPress(topic, message.toString());
+      });
+
+      mqttClient.on('error', (err) => {
+        console.error('MQTT Error:', err);
+        document.getElementById('statusText').textContent = 'ERRO';
+        document.getElementById('statusIndicator').style.color = 'var(--red)';
+      });
+    }
+
+    // Handle physical button presses
+    function handleButtonPress(topic, message) {
+      if (!gameStarted || message !== 'PRESSIONADO') return;
+
+      // BTN1 - Up, BTN2 - Down, BTN3 - Back, BTN4 - Select/Confirm
+      if (topic.includes('BOTAO_1')) {
+        // Navigate up in target selection
+        navigateTargets(-1);
+      } else if (topic.includes('BOTAO_2')) {
+        // Navigate down in target selection
+        navigateTargets(1);
+      } else if (topic.includes('BOTAO_4')) {
+        // Confirm selection / Fire
+        if (selectedTarget !== null) {
+          fire();
+        }
+      }
+    }
+
+    let targetIndex = 0;
+    function navigateTargets(direction) {
+      const targetBtns = document.querySelectorAll('.target-btn:not(:disabled)');
+      if (targetBtns.length === 0) return;
+
+      targetIndex = (targetIndex + direction + targetBtns.length) % targetBtns.length;
+      selectTarget(parseInt(targetBtns[targetIndex].dataset.playerId));
+    }
+
+    // Add player
+    function addPlayer() {
+      if (players.length >= 4) {
+        alert('MÁXIMO DE 4 JOGADORES!');
+        return;
+      }
+      if (gameStarted) {
+        alert('NÃO É POSSÍVEL ADICIONAR JOGADORES DURANTE O JOGO!');
+        return;
+      }
+
+      const playerName = prompt('Digite o nome do jogador:', `PLAYER ${players.length + 1}`);
+      if (!playerName || playerName.trim() === '') {
+        return;
+      }
+
+      if (players.length === 0 && players.some(p => p.chips < 25)) {
+        alert('JOGADORES PRECISAM TER 25 FICHAS PARA ENTRAR!');
+        return;
+      }
+
+      const player = {
+        id: players.length + 1,
+        name: playerName.trim().toUpperCase(),
+        chips: 200,
+        color: playerColors[players.length],
+        lives: 5,
+        isAlive: true
+      };
+
+      player.chips -= 25; // Entry fee
+      players.push(player);
+      updatePlayersList();
+
+      if (players.length === 4) {
+        document.getElementById('addPlayerBtn').disabled = true;
+        document.getElementById('addPlayerBtn').style.opacity = '0.3';
+      }
+    }
+
+    // Update players list
+    function updatePlayersList() {
+      const list = document.getElementById('playerList');
+      list.innerHTML = '';
+
+      players.forEach((player, index) => {
+        const card = document.createElement('div');
+        card.className = 'player-card';
+        card.style.borderColor = player.color;
+        
+        if (index === currentPlayerIndex && gameStarted && player.isAlive) {
+          card.classList.add('active');
+        }
+        
+        if (!player.isAlive) {
+          card.classList.add('dead');
+        }
+        
+        const livesHtml = Array(player.lives).fill('❤️').join('');
+        const deadLives = Array(5 - player.lives).fill('🖤').join('');
+        
+        card.innerHTML = `
+          <div class="player-name" style="color: ${player.color}">${player.name}</div>
+          <div class="player-lives">${livesHtml}${deadLives}</div>
+        `;
+        list.appendChild(card);
+      });
+
+      updateStats();
+    }
+
+    function updateStats() {
+      const alive = players.filter(p => p.isAlive).length;
+      const dead = players.filter(p => !p.isAlive).length;
+      document.getElementById('playersAlive').textContent = alive;
+      document.getElementById('playersDead').textContent = dead;
+      document.getElementById('totalShots').textContent = totalShots;
+    }
+
+    // Start game
+    function startGame() {
+      if (players.length < 2) {
+        alert('MÍNIMO DE 2 JOGADORES!');
+        return;
+      }
+
+      gameStarted = true;
+      currentPlayerIndex = 0;
+      roundNumber = 1;
+      totalShots = 0;
+      
+      document.getElementById('startGameBtn').disabled = true;
+      document.getElementById('addPlayerBtn').disabled = true;
+      document.getElementById('gameInfo').style.display = 'block';
+      
+      updatePlayersList();
+      loadChamber();
+      showTargetSelection();
+    }
+
+    // Load chamber with bullets
+    function loadChamber() {
+      chamber = [];
+      const numBullets = Math.floor(Math.random() * 4) + 3; // 3-6 bullets
+      
+      // CORREÇÃO: Garante SEMPRE pelo menos 1 bala em branco
+      // Máximo de balas letais = numBullets - 1 (para garantir pelo menos 1 em branco)
+      const maxLive = numBullets - 1;
+      const numLive = Math.min(Math.floor(Math.random() * 3) + 1, maxLive); // 1-3 live bullets, mas nunca todas
+      const numBlank = numBullets - numLive;
+
+      // Validação extra de segurança
+      if (numBlank === 0) {
+        console.error('[BUG DETECTADO] Sem balas em branco! Forçando pelo menos 1.');
+        // Força pelo menos 1 bala em branco
+        numLive = numBullets - 1;
+        numBlank = 1;
+      }
+
+      // Add live bullets
+      for (let i = 0; i < numLive; i++) {
+        chamber.push({ type: 'live', used: false });
+      }
+      
+      // Add blank bullets
+      for (let i = 0; i < numBlank; i++) {
+        chamber.push({ type: 'blank', used: false });
+      }
+
+      // Shuffle
+      chamber.sort(() => Math.random() - 0.5);
+
+      displayChamber();
+      document.getElementById('roundNumber').textContent = roundNumber;
+      updateBulletsLeft();
+      
+      addLog(`🔫 NOVA RODADA: ${numBullets} balas (${numLive} letais, ${numBlank} vazias)`);
+      console.log(`[DEBUG] Câmara carregada: ${numBullets} total, ${numLive} letais, ${numBlank} vazias`);
+    }
+
+    function displayChamber() {
+      const container = document.getElementById('chamberDisplay');
+      container.innerHTML = '';
+
+      chamber.forEach((bullet, index) => {
+        const bulletEl = document.createElement('div');
+        bulletEl.className = 'bullet';
+        
+        // Se foi usada, revela o tipo
+        if (bullet.used) {
+          bulletEl.classList.add('used');
+          bulletEl.classList.add(bullet.type === 'live' ? 'revealed-live' : 'revealed-blank');
+          bulletEl.textContent = bullet.type === 'live' ? '💥' : '🔇';
+        } else {
+          // Se não foi usada, mostra apenas interrogação (mistério!)
+          bulletEl.textContent = '?';
+        }
+        
+        container.appendChild(bulletEl);
+      });
+    }
+
+    function updateBulletsLeft() {
+      const left = chamber.filter(b => !b.used).length;
+      document.getElementById('bulletsLeft').textContent = left;
+    }
+
+    function showTargetSelection() {
+      const player = players[currentPlayerIndex];
+      
+      // Send MQTT - player turn
+      if (mqttClient && mqttClient.connected) {
+        const rgbColor = hexToRgb(player.color);
+        mqttClient.publish('IFCE_caua/led_control', rgbColor);
+        mqttClient.publish(TOPIC_PLAYER_TURN, player.name);
+        mqttClient.publish('IFCE_caua/display_msg', `${player.name} - Escolha alvo`);
+        mqttClient.publish('IFCE_caua/buzzer_control', '1000'); // Beep
+      }
+
+      const container = document.getElementById('targetButtons');
+      container.innerHTML = '';
+
+      // Add "Atirar em si mesmo" option
+      const selfBtn = document.createElement('button');
+      selfBtn.className = 'target-btn';
+      selfBtn.style.color = player.color;
+      selfBtn.style.borderColor = player.color;
+      selfBtn.dataset.playerId = player.id;
+      selfBtn.textContent = `${player.name} (VOCÊ)`;
+      selfBtn.onclick = () => selectTarget(player.id);
+      container.appendChild(selfBtn);
+
+      // Add other players
+      players.forEach(p => {
+        if (p.id !== player.id && p.isAlive) {
+          const btn = document.createElement('button');
+          btn.className = 'target-btn';
+          btn.style.color = p.color;
+          btn.style.borderColor = p.color;
+          btn.dataset.playerId = p.id;
+          btn.textContent = p.name;
+          btn.onclick = () => selectTarget(p.id);
+          container.appendChild(btn);
+        }
+      });
+
+      document.getElementById('targetSelection').style.display = 'block';
+      selectedTarget = null;
+      document.getElementById('fireBtn').disabled = true;
+      targetIndex = 0;
+    }
+
+    function selectTarget(playerId) {
+      selectedTarget = playerId;
+      
+      // Highlight selected
+      document.querySelectorAll('.target-btn').forEach(btn => {
+        if (parseInt(btn.dataset.playerId) === playerId) {
+          btn.style.boxShadow = `0 0 30px ${btn.style.color}`;
+          btn.style.transform = 'scale(1.1)';
+        } else {
+          btn.style.boxShadow = '';
+          btn.style.transform = 'scale(1)';
+        }
+      });
+
+      document.getElementById('fireBtn').disabled = false;
+    }
+
+    function fire() {
+      if (selectedTarget === null) return;
+
+      document.getElementById('fireBtn').disabled = true;
+      document.getElementById('targetSelection').style.display = 'none';
+
+      const shooter = players[currentPlayerIndex];
+      const target = players.find(p => p.id === selectedTarget);
+      
+      // Get next bullet
+      const bulletIndex = chamber.findIndex(b => !b.used);
+      if (bulletIndex === -1) {
+        // No bullets left, reload
+        loadChamber();
+        showTargetSelection();
+        return;
+      }
+
+      const bullet = chamber[bulletIndex];
+      bullet.used = true;
+      totalShots++;
+
+      // SUSPENSE! Mostrar "mirando" por 4 segundos
+      const resultDiv = document.getElementById('roundResult');
+      resultDiv.innerHTML = `<div class="round-result" style="background: rgba(255, 170, 0, 0.3); border: 3px solid var(--yellow); color: var(--yellow); animation: suspensePulse 1s ease-in-out infinite;">
+        🎯 ${shooter.name} MIRA EM ${target.name}...<br/>
+        <div style="font-size: 0.6em; margin-top: 10px;">⏳ PREPARANDO...</div>
+      </div>`;
+      
+      // Som de suspense crescente
+      playSuspenseSound();
+      
+      // Aguarda 4 segundos antes de revelar
+      setTimeout(() => {
+        displayChamber();
+        updateBulletsLeft();
+
+        // Play shot sound
+        playShotSound();
+
+        setTimeout(() => {
+          const resultDiv = document.getElementById('roundResult');
+          
+          if (bullet.type === 'live') {
+            // Hit!
+            target.lives--;
+            resultDiv.innerHTML = `<div class="round-result hit">💥 ${target.name} FOI ATINGIDO!</div>`;
+            addLog(`💥 ${shooter.name} atirou em ${target.name} - ACERTO LETAL!`);
+          
+          // Send MQTT
+          if (mqttClient && mqttClient.connected) {
+            const rgbColor = hexToRgb(target.color);
+            mqttClient.publish('IFCE_caua/led_control', rgbColor);
+            mqttClient.publish(TOPIC_SHOT_RESULT, `${target.name} HIT`);
+            mqttClient.publish('IFCE_caua/display_msg', `${target.name} atingido!`);
+            
+            // Play death melody
+            for (let i = 0; i < 3; i++) {
+              setTimeout(() => {
+                mqttClient.publish('IFCE_caua/buzzer_control', String(800 - i * 200));
+              }, i * 200);
+            }
+          }
+
+          if (target.lives <= 0) {
+            target.isAlive = false;
+            addLog(`💀 ${target.name} FOI ELIMINADO!`);
+          }
+
+            // Move to next player
+            setTimeout(() => {
+              nextPlayer();
+            }, 2000);
+
+          } else {
+            // Blank!
+            resultDiv.innerHTML = `<div class="round-result miss">🔇 TIRO EM BRANCO!</div>`;
+            addLog(`🔇 ${shooter.name} atirou em ${target.name} - TIRO EM BRANCO`);
+          
+          // Send MQTT
+          if (mqttClient && mqttClient.connected) {
+            mqttClient.publish(TOPIC_SHOT_RESULT, 'BLANK');
+            mqttClient.publish('IFCE_caua/display_msg', 'Tiro em branco!');
+            mqttClient.publish('IFCE_caua/buzzer_control', '400'); // Low beep
+          }
+
+            
+            if (shooter.id === target.id) {
+              // Shot themselves with blank - get extra turn!
+              addLog(`🎯 ${shooter.name} atirou em si mesmo com branco - TURNO EXTRA!`);
+              setTimeout(() => {
+                resultDiv.innerHTML = '';
+                showTargetSelection();
+              }, 2000);
+            } else {
+              // Move to next player
+              setTimeout(() => {
+                nextPlayer();
+              }, 2000);
+            }
+          }
+
+          updatePlayersList();
+        }, 500);
+      }, 4000); // 4 segundos de suspense!
+    }    function nextPlayer() {
+      document.getElementById('roundResult').innerHTML = '';
+      
+      // Check if game over
+      const alivePlayers = players.filter(p => p.isAlive);
+      if (alivePlayers.length === 1) {
+        gameOver(alivePlayers[0]);
+        return;
+      }
+
+      // Check if chamber is empty
+      if (chamber.every(b => b.used)) {
+        roundNumber++;
+        loadChamber();
+      }
+
+      // Find next alive player
+      do {
+        currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      } while (!players[currentPlayerIndex].isAlive);
+
+      updatePlayersList();
+      showTargetSelection();
+    }
+
+    function gameOver(winner) {
+      winner.chips += 2000; // Prize
+      
+      const resultDiv = document.getElementById('roundResult');
+      resultDiv.innerHTML = `<div class="round-result hit" style="font-size: 3em;">🏆 ${winner.name} VENCEU!<br/>+2000 FICHAS 💎</div>`;
+      
+      addLog(`🏆 ${winner.name} VENCEU A ROLETA RUSSA! Prêmio: 2000 fichas`);
+      
+      // Send MQTT
+      if (mqttClient && mqttClient.connected) {
+        const rgbColor = hexToRgb(winner.color);
+        mqttClient.publish('IFCE_caua/led_control', rgbColor);
+        mqttClient.publish(TOPIC_GAME_END, `${winner.name} VENCEU`);
+        mqttClient.publish('IFCE_caua/display_msg', `${winner.name} venceu!`);
+        playVictoryMelody();
+      }
+
+      document.getElementById('targetSelection').style.display = 'none';
+      
+      setTimeout(() => {
+        if (confirm('JOGAR NOVAMENTE?')) {
+          resetGame();
+        }
+      }, 3000);
+    }
+
+    function resetGame() {
+      players = [];
+      currentPlayerIndex = 0;
+      gameStarted = false;
+      chamber = [];
+      selectedTarget = null;
+      roundNumber = 1;
+      totalShots = 0;
+      
+      document.getElementById('startGameBtn').disabled = false;
+      document.getElementById('addPlayerBtn').disabled = false;
+      document.getElementById('addPlayerBtn').style.opacity = '1';
+      document.getElementById('gameInfo').style.display = 'none';
+      document.getElementById('targetSelection').style.display = 'none';
+      document.getElementById('roundResult').innerHTML = '';
+      document.getElementById('chamberDisplay').innerHTML = '';
+      document.getElementById('gameLog').innerHTML = '';
+      
+      updatePlayersList();
+    }
+
+    function addLog(message) {
+      const log = document.getElementById('gameLog');
+      const time = new Date().toLocaleTimeString();
+      log.innerHTML = `<div style="color: var(--cyan); margin: 5px 0;">[${time}] ${message}</div>` + log.innerHTML;
+    }
+
+    // Sound functions
+    function playSuspenseSound() {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Som de suspense crescente (4 segundos)
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      
+      osc.type = 'sine';
+      osc.frequency.value = 200;
+      osc.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 4);
+      gain.gain.value = 0.1;
+      gain.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 4);
+      
+      osc.start();
+      osc.stop(audioContext.currentTime + 4);
+      
+      // Batidas de coração
+      for (let i = 0; i < 8; i++) {
+        setTimeout(() => {
+          const beat = audioContext.createOscillator();
+          const beatGain = audioContext.createGain();
+          beat.connect(beatGain);
+          beatGain.connect(audioContext.destination);
+          beat.type = 'sine';
+          beat.frequency.value = 100;
+          beatGain.gain.value = 0.2;
+          beatGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+          beat.start();
+          beat.stop(audioContext.currentTime + 0.1);
+        }, i * 500);
+      }
+      
+      // Enviar para ESP32
+      if (mqttClient && mqttClient.connected) {
+        for (let i = 0; i < 8; i++) {
+          setTimeout(() => {
+            mqttClient.publish('IFCE_caua/buzzer_control', String(200 + (i * 50)));
+          }, i * 500);
+        }
+      }
+    }
+
+    function playShotSound() {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Explosion sound
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      
+      osc.type = 'sawtooth';
+      osc.frequency.value = 100;
+      osc.frequency.exponentialRampToValueAtTime(20, audioContext.currentTime + 0.2);
+      gain.gain.value = 0.3;
+      gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      
+      osc.start();
+      osc.stop(audioContext.currentTime + 0.2);
+    }
+
+    function playVictoryMelody() {
+      if (!mqttClient || !mqttClient.connected) return;
+      
+      const melody = [523, 659, 784, 1047, 784, 1047]; // C, E, G, high C, G, high C
+      melody.forEach((freq, i) => {
+        setTimeout(() => {
+          mqttClient.publish('IFCE_caua/buzzer_control', String(freq));
+        }, i * 200);
+      });
+    }
+
+    function playEntranceSound() {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [392, 349, 294, 262]; // G, F, D, C (descending)
+      
+      notes.forEach((freq, index) => {
+        setTimeout(() => {
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          
+          osc.type = 'square';
+          osc.frequency.value = freq;
+          gain.gain.value = 0.2;
+          gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+          
+          osc.start();
+          osc.stop(audioContext.currentTime + 0.3);
+        }, index * 150);
+      });
+    }
+
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? `${parseInt(result[1], 16)},${parseInt(result[2], 16)},${parseInt(result[3], 16)}` : '255,0,0';
+    }
+
+    // Cleanup ao sair da página
+    window.addEventListener('beforeunload', () => {
+      if (mqttClient && mqttClient.connected) {
+        // Reset LED e buzzer
+        mqttClient.publish('IFCE_caua/led_control', '0,0,0');
+        mqttClient.publish('IFCE_caua/buzzer_control', '0');
+        mqttClient.publish('IFCE_caua/display_msg', 'Casino Menu');
+      }
+    });
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      initMQTT();
+      updatePlayersList();
+      playEntranceSound();
+
+      setTimeout(() => {
+        const loadingScreen = document.getElementById('loadingScreen');
+        loadingScreen.classList.add('hidden');
+        setTimeout(() => {
+          loadingScreen.remove();
+        }, 500);
+      }, 2000);
+    });
+  </script>
+</body>
+</html>

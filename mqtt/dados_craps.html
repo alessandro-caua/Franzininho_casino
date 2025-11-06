@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>🎲 DADOS/CRAPS - Franzininho Casino</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { 
+      font-family: 'Rajdhani', sans-serif;
+      --cyan: #00ffff;
+      --magenta: #ff00ff;
+      --green: #00ff41;
+      --red: #ff0055;
+      --blue: #0080ff;
+      --yellow: #ffaa00;
+      --dark: #0a0a0f;
+    }
+    body { 
+      background: #0a0a0f;
+      background-image: 
+        repeating-linear-gradient(0deg, rgba(0, 128, 255, 0.03) 0px, transparent 1px, transparent 2px, rgba(0, 128, 255, 0.03) 3px),
+        repeating-linear-gradient(90deg, rgba(0, 128, 255, 0.03) 0px, transparent 1px, transparent 2px, rgba(0, 128, 255, 0.03) 3px),
+        radial-gradient(circle at 50% 50%, rgba(0, 128, 255, 0.15) 0%, transparent 50%);
+      background-size: 50px 50px, 50px 50px, 100% 100%;
+      min-height: 100vh;
+      padding: 20px;
+      color: #e0e0e0;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    
+    /* Estilo da barra de scroll */
+    ::-webkit-scrollbar {
+      width: 12px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 1px solid rgba(0, 128, 255, 0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #0080ff, #00ffff);
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 128, 255, 0.5);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #00ffff, #0080ff);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: linear-gradient(transparent 50%, rgba(0, 128, 255, 0.02) 50%);
+      background-size: 4px 4px;
+      pointer-events: none;
+      z-index: 1;
+      animation: scanlines 10s linear infinite;
+    }
+    @keyframes scanlines {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(4px); }
+    }
+    
+    .particle {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      animation: particleFall 3s ease-out forwards;
+    }
+    @keyframes particleFall {
+      0% {
+        opacity: 1;
+        transform: translateY(0) rotate(0deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(100vh) rotate(720deg);
+      }
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+      padding-bottom: 50px;
+    }
+    
+    h1 {
+      font-family: 'Orbitron', monospace;
+      color: var(--blue);
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 3.5em;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 8px;
+      text-shadow: 
+        0 0 10px rgba(0, 128, 255, 0.8),
+        0 0 20px rgba(0, 128, 255, 0.6),
+        0 0 30px rgba(0, 128, 255, 0.4);
+      animation: neonPulse 2s ease-in-out infinite;
+    }
+    @keyframes neonPulse {
+      0%, 100% { 
+        text-shadow: 0 0 10px rgba(0, 128, 255, 0.8), 0 0 20px rgba(0, 128, 255, 0.6);
+      }
+      50% { 
+        text-shadow: 0 0 20px rgba(0, 128, 255, 1), 0 0 40px rgba(0, 128, 255, 0.8);
+      }
+    }
+    
+    .subtitle {
+      font-family: 'Orbitron', monospace;
+      text-align: center;
+      color: var(--cyan);
+      margin-bottom: 20px;
+      font-size: 1.3em;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+    }
+    
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding: 15px;
+      background: rgba(0, 128, 255, 0.1);
+      border: 2px solid var(--blue);
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0, 128, 255, 0.3);
+    }
+    
+    .stat-box {
+      text-align: center;
+    }
+    .stat-label {
+      font-size: 0.9em;
+      color: #aaa;
+    }
+    .stat-value {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.8em;
+      font-weight: 700;
+      color: var(--cyan);
+      text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    }
+    
+    .game-area {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    
+    .dice-table {
+      background: linear-gradient(135deg, #1a1a2e, #0f0f1e);
+      border: 3px solid var(--blue);
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 0 30px rgba(0, 128, 255, 0.4);
+    }
+    
+    .dice-container {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin: 40px 0;
+    }
+    
+    .die {
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, #ffffff, #e0e0e0);
+      border: 4px solid var(--blue);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4em;
+      font-weight: 900;
+      color: var(--blue);
+      box-shadow: 
+        inset 0 0 20px rgba(0, 0, 0, 0.2),
+        0 0 30px rgba(0, 128, 255, 0.5);
+      transition: transform 0.3s;
+    }
+    
+    .die.rolling {
+      animation: diceRoll 0.1s linear infinite;
+    }
+    
+    @keyframes diceRoll {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .total-display {
+      text-align: center;
+      font-family: 'Orbitron', monospace;
+      font-size: 3em;
+      font-weight: 900;
+      color: var(--cyan);
+      text-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+      margin: 20px 0;
+    }
+    
+    .betting-panel {
+      background: linear-gradient(135deg, #1a1a2e, #0f0f1e);
+      border: 3px solid var(--blue);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 0 30px rgba(0, 128, 255, 0.4);
+    }
+    
+    .bet-controls h3 {
+      color: var(--cyan);
+      margin-bottom: 15px;
+      text-align: center;
+      font-family: 'Orbitron', monospace;
+    }
+    
+    .bet-amount {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .bet-btn {
+      background: linear-gradient(135deg, var(--blue), #0060cc);
+      border: none;
+      padding: 15px 25px;
+      font-size: 1.5em;
+      font-weight: 700;
+      color: #fff;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(0, 128, 255, 0.5);
+      transition: all 0.3s;
+    }
+    
+    .bet-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 25px rgba(0, 128, 255, 0.8);
+    }
+    
+    .bet-btn:active {
+      transform: scale(0.95);
+    }
+    
+    .bet-display {
+      font-family: 'Orbitron', monospace;
+      font-size: 2.5em;
+      font-weight: 700;
+      color: var(--cyan);
+      text-shadow: 0 0 15px rgba(0, 255, 255, 0.8);
+    }
+    
+    .bet-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .bet-option {
+      background: rgba(0, 128, 255, 0.1);
+      border: 2px solid var(--blue);
+      border-radius: 10px;
+      padding: 15px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .bet-option:hover {
+      background: rgba(0, 128, 255, 0.3);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 128, 255, 0.5);
+    }
+    
+    .bet-option.selected {
+      background: rgba(0, 255, 255, 0.3);
+      border-color: var(--cyan);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+    }
+    
+    .bet-option-label {
+      font-weight: 700;
+      color: var(--cyan);
+      margin-bottom: 5px;
+    }
+    
+    .bet-option-payout {
+      font-size: 0.9em;
+      color: var(--green);
+    }
+    
+    .roll-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--green), #00aa33);
+      border: none;
+      padding: 20px;
+      font-family: 'Orbitron', monospace;
+      font-size: 2em;
+      font-weight: 900;
+      color: #fff;
+      border-radius: 15px;
+      cursor: pointer;
+      box-shadow: 0 0 30px rgba(0, 255, 65, 0.6);
+      transition: all 0.3s;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+    }
+    
+    .roll-btn:hover:not(:disabled) {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 40px rgba(0, 255, 65, 0.8);
+    }
+    
+    .roll-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    
+    .roll-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .rules-panel {
+      background: rgba(0, 128, 255, 0.05);
+      border: 2px solid var(--blue);
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    
+    .rules-panel h4 {
+      color: var(--cyan);
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    
+    .rule-item {
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(0, 128, 255, 0.2);
+      font-size: 0.9em;
+    }
+    
+    .result-message {
+      text-align: center;
+      font-family: 'Orbitron', monospace;
+      font-size: 2em;
+      font-weight: 700;
+      margin: 20px 0;
+      min-height: 50px;
+      color: var(--cyan);
+      text-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+      animation: resultPulse 1s ease-in-out;
+    }
+    
+    @keyframes resultPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    
+    .result-message.win {
+      color: var(--green);
+      text-shadow: 0 0 30px rgba(0, 255, 65, 1);
+    }
+    
+    .result-message.lose {
+      color: var(--red);
+      text-shadow: 0 0 30px rgba(255, 0, 85, 1);
+    }
+    
+    .stats-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    
+    .chart-container {
+      background: linear-gradient(135deg, #1a1a2e, #0f0f1e);
+      border: 3px solid var(--blue);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 0 30px rgba(0, 128, 255, 0.4);
+    }
+    
+    .chart-container h3 {
+      color: var(--cyan);
+      margin-bottom: 15px;
+      text-align: center;
+      font-family: 'Orbitron', monospace;
+    }
+    
+    .back-btn {
+      display: inline-block;
+      margin: 20px 0;
+      padding: 15px 30px;
+      background: linear-gradient(135deg, var(--cyan), var(--magenta));
+      border: none;
+      border-radius: 10px;
+      font-family: 'Orbitron', monospace;
+      font-size: 1.2em;
+      font-weight: 700;
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+      transition: all 0.3s;
+    }
+    
+    .back-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(0, 255, 255, 0.7);
+    }
+    
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      background: rgba(0, 128, 255, 0.2);
+      border: 2px solid var(--blue);
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2em;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 0 20px rgba(0, 128, 255, 0.4);
+    }
+    
+    .theme-toggle:hover {
+      transform: rotate(180deg);
+      box-shadow: 0 0 30px rgba(0, 128, 255, 0.8);
+    }
+    
+    body.light-mode {
+      background: #f0f0f0;
+      color: #1a1a1a;
+    }
+    
+    body.light-mode .dice-table,
+    body.light-mode .betting-panel,
+    body.light-mode .chart-container {
+      background: linear-gradient(135deg, #ffffff, #e0e0e0);
+    }
+    
+    body.light-mode h1,
+    body.light-mode .subtitle,
+    body.light-mode h3,
+    body.light-mode .stat-value {
+      color: #0080ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
+    🌓
+  </div>
+  
+  <div class="container">
+    <a href="casino_menu.html" class="back-btn">⬅️ VOLTAR AO MENU</a>
+    
+    <h1>🎲 DADOS/CRAPS</h1>
+    <div class="subtitle">FRANZININHO CASINO - JOGO DE DADOS</div>
+    
+    <div class="top-bar">
+      <div class="stat-box">
+        <div class="stat-label">CRÉDITOS</div>
+        <div class="stat-value" id="credits">1000</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">JOGADAS</div>
+        <div class="stat-value" id="totalRolls">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">VITÓRIAS</div>
+        <div class="stat-value" id="totalWins">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">MAIOR PRÊMIO</div>
+        <div class="stat-value" id="biggestWin">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">STATUS MQTT</div>
+        <div class="stat-value" id="mqttStatus">❌</div>
+      </div>
+    </div>
+    
+    <div class="game-area">
+      <div class="dice-table">
+        <div class="dice-container">
+          <div class="die" id="die1">1</div>
+          <div class="die" id="die2">1</div>
+        </div>
+        
+        <div class="total-display" id="totalDisplay">TOTAL: 2</div>
+        
+        <div class="result-message" id="resultMsg"></div>
+        
+        <button class="roll-btn" id="rollBtn" onclick="rollDice()">🎲 ROLAR DADOS</button>
+      </div>
+      
+      <div class="betting-panel">
+        <h3>💰 APOSTA</h3>
+        
+        <div class="bet-amount">
+          <button class="bet-btn" onclick="changeBet(-10)">-</button>
+          <div class="bet-display" id="betAmount">10</div>
+          <button class="bet-btn" onclick="changeBet(10)">+</button>
+        </div>
+        
+        <h3>🎯 TIPO DE APOSTA</h3>
+        <div class="bet-options">
+          <div class="bet-option selected" data-type="7" onclick="selectBetType('7')">
+            <div class="bet-option-label">Lucky 7</div>
+            <div class="bet-option-payout">Paga x4</div>
+          </div>
+          <div class="bet-option" data-type="11" onclick="selectBetType('11')">
+            <div class="bet-option-label">Eleven (11)</div>
+            <div class="bet-option-payout">Paga x15</div>
+          </div>
+          <div class="bet-option" data-type="doubles" onclick="selectBetType('doubles')">
+            <div class="bet-option-label">Pares</div>
+            <div class="bet-option-payout">Paga x30</div>
+          </div>
+          <div class="bet-option" data-type="under7" onclick="selectBetType('under7')">
+            <div class="bet-option-label">Menor que 7</div>
+            <div class="bet-option-payout">Paga x2</div>
+          </div>
+          <div class="bet-option" data-type="over7" onclick="selectBetType('over7')">
+            <div class="bet-option-label">Maior que 7</div>
+            <div class="bet-option-payout">Paga x2</div>
+          </div>
+          <div class="bet-option" data-type="snake" onclick="selectBetType('snake')">
+            <div class="bet-option-label">Snake (2)</div>
+            <div class="bet-option-payout">Paga x30</div>
+          </div>
+        </div>
+        
+        <div class="rules-panel">
+          <h4>📋 REGRAS</h4>
+          <div class="rule-item">🎰 Lucky 7: Total = 7</div>
+          <div class="rule-item">🔥 Eleven: Total = 11</div>
+          <div class="rule-item">🎯 Pares: Ambos iguais</div>
+          <div class="rule-item">⬇️ Menor: Total &lt; 7</div>
+          <div class="rule-item">⬆️ Maior: Total &gt; 7</div>
+          <div class="rule-item">🐍 Snake: Total = 2</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="stats-panel">
+      <div class="chart-container">
+        <h3>📊 DISTRIBUIÇÃO DE RESULTADOS</h3>
+        <canvas id="distributionChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <h3>📈 HISTÓRICO DE GANHOS</h3>
+        <canvas id="historyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuração MQTT
+    const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+    const TOPIC_BTN = 'IFCE_caua/botoes';
+    const TOPIC_LED = 'IFCE_caua/led_control';
+    const TOPIC_CREDITS = 'IFCE_caua/credits';
+    const TOPIC_BET = 'IFCE_caua/bet';
+    const TOPIC_WIN = 'IFCE_caua/win';
+    const TOPIC_CASINO_STATUS = 'IFCE_caua/casino_status';
+    
+    let client = null;
+    let credits = 1000;
+    let betAmount = 10;
+    let betType = '7';
+    let totalRolls = 0;
+    let totalWins = 0;
+    let biggestWin = 0;
+    let isRolling = false;
+    let rollHistory = [];
+    let resultDistribution = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];  // Para somas 2-12
+    
+    // Conectar MQTT
+    function connectMQTT() {
+      client = mqtt.connect(BROKER);
+      
+      client.on('connect', () => {
+        console.log('MQTT Conectado!');
+        document.getElementById('mqttStatus').textContent = '✅';
+        
+        client.subscribe(TOPIC_BTN + '/#');
+        client.subscribe(TOPIC_CREDITS);
+        client.subscribe(TOPIC_CASINO_STATUS);
+      });
+      
+      client.on('message', (topic, message) => {
+        const msg = message.toString();
+        console.log(`${topic}: ${msg}`);
+        
+        if (topic.startsWith(TOPIC_BTN)) {
+          handleButtonPress(topic, msg);
+        } else if (topic === TOPIC_CREDITS) {
+          credits = parseInt(msg);
+          updateDisplay();
+        } else if (topic === TOPIC_CASINO_STATUS) {
+          if (msg === 'LOCKED') {
+            alert('🔒 Casino bloqueado! Digite a sequência secreta nos botões da placa.');
+          }
+        }
+      });
+      
+      client.on('error', (err) => {
+        console.error('Erro MQTT:', err);
+        document.getElementById('mqttStatus').textContent = '❌';
+      });
+    }
+    
+    function handleButtonPress(topic, msg) {
+      if (!topic.includes('BOTAO_')) return;
+      
+      const btnNum = parseInt(topic.split('_')[2]);
+      
+      switch(btnNum) {
+        case 1: // CIMA - aumenta aposta
+          changeBet(10);
+          break;
+        case 2: // BAIXO - diminui aposta
+          changeBet(-10);
+          break;
+        case 3: // VOLTAR - volta ao menu
+          window.location.href = 'casino_menu.html';
+          break;
+        case 4: // CONFIRMAR - rola dados
+          rollDice();
+          break;
+      }
+    }
+    
+    function changeBet(amount) {
+      betAmount = Math.max(10, Math.min(1000, betAmount + amount));
+      document.getElementById('betAmount').textContent = betAmount;
+    }
+    
+    function selectBetType(type) {
+      betType = type;
+      
+      document.querySelectorAll('.bet-option').forEach(option => {
+        option.classList.remove('selected');
+      });
+      
+      document.querySelector(`[data-type="${type}"]`).classList.add('selected');
+    }
+    
+    function rollDice() {
+      if (isRolling) return;
+      if (credits < betAmount) {
+        showResult('Créditos insuficientes!', 'lose');
+        return;
+      }
+      
+      isRolling = true;
+      document.getElementById('rollBtn').disabled = true;
+      document.getElementById('resultMsg').textContent = '';
+      
+      // Publica aposta
+      if (client) {
+        client.publish(TOPIC_BET, betAmount.toString());
+      }
+      
+      credits -= betAmount;
+      totalRolls++;
+      updateDisplay();
+      
+      // Animação dos dados
+      const die1 = document.getElementById('die1');
+      const die2 = document.getElementById('die2');
+      die1.classList.add('rolling');
+      die2.classList.add('rolling');
+      
+      // LED animado durante rolagem
+      animateLEDRoll();
+      
+      let rollCount = 0;
+      const rollInterval = setInterval(() => {
+        die1.textContent = Math.floor(Math.random() * 6) + 1;
+        die2.textContent = Math.floor(Math.random() * 6) + 1;
+        rollCount++;
+        
+        if (rollCount >= 20) {
+          clearInterval(rollInterval);
+          
+          // Resultado final
+          const result1 = Math.floor(Math.random() * 6) + 1;
+          const result2 = Math.floor(Math.random() * 6) + 1;
+          const total = result1 + result2;
+          
+          die1.textContent = result1;
+          die2.textContent = result2;
+          die1.classList.remove('rolling');
+          die2.classList.remove('rolling');
+          
+          document.getElementById('totalDisplay').textContent = `TOTAL: ${total}`;
+          
+          // Atualiza distribuição
+          resultDistribution[total]++;
+          
+          checkWin(result1, result2, total);
+          
+          isRolling = false;
+          document.getElementById('rollBtn').disabled = false;
+          
+          // Salva no histórico
+          rollHistory.push({ bet: betAmount, result: total, timestamp: Date.now() });
+          if (rollHistory.length > 20) rollHistory.shift();
+          
+          updateCharts();
+        }
+      }, 100);
+    }
+    
+    function checkWin(die1, die2, total) {
+      let won = false;
+      let multiplier = 0;
+      let message = '';
+      
+      switch(betType) {
+        case '7':
+          if (total === 7) {
+            won = true;
+            multiplier = 4;
+            message = 'LUCKY 7! 🎰';
+          }
+          break;
+        case '11':
+          if (total === 11) {
+            won = true;
+            multiplier = 15;
+            message = 'ELEVEN! 🔥';
+          }
+          break;
+        case 'doubles':
+          if (die1 === die2) {
+            won = true;
+            multiplier = 30;
+            message = 'PARES! 🎯';
+          }
+          break;
+        case 'under7':
+          if (total < 7) {
+            won = true;
+            multiplier = 2;
+            message = 'MENOR QUE 7! ⬇️';
+          }
+          break;
+        case 'over7':
+          if (total > 7) {
+            won = true;
+            multiplier = 2;
+            message = 'MAIOR QUE 7! ⬆️';
+          }
+          break;
+        case 'snake':
+          if (total === 2) {
+            won = true;
+            multiplier = 30;
+            message = 'SNAKE EYES! 🐍';
+          }
+          break;
+      }
+      
+      if (won) {
+        const winAmount = betAmount * multiplier;
+        credits += winAmount;
+        totalWins++;
+        
+        if (winAmount > biggestWin) {
+          biggestWin = winAmount;
+        }
+        
+        showResult(`${message}\nGANHOU ${winAmount} CRÉDITOS!`, 'win');
+        createParticles(50);
+        setLEDColor(0, 255, 0);  // Verde
+        
+        // Publica vitória
+        if (client) {
+          client.publish(TOPIC_WIN, winAmount.toString());
+        }
+      } else {
+        showResult('Tente novamente!', 'lose');
+        setLEDColor(255, 0, 0);  // Vermelho
+      }
+      
+      updateDisplay();
+    }
+    
+    function showResult(message, className = '') {
+      const resultMsg = document.getElementById('resultMsg');
+      resultMsg.textContent = message;
+      resultMsg.className = `result-message ${className}`;
+    }
+    
+    function setLEDColor(r, g, b) {
+      if (client) {
+        client.publish(TOPIC_LED, `${r},${g},${b}`);
+      }
+    }
+    
+    function animateLEDRoll() {
+      let count = 0;
+      const colors = [
+        [255, 0, 0],
+        [0, 255, 0],
+        [0, 0, 255],
+        [255, 255, 0],
+        [255, 0, 255],
+        [0, 255, 255]
+      ];
+      
+      const interval = setInterval(() => {
+        const color = colors[count % colors.length];
+        setLEDColor(...color);
+        count++;
+        
+        if (count >= 20) {
+          clearInterval(interval);
+        }
+      }, 100);
+    }
+    
+    function createParticles(count) {
+      const particles = ['🎲', '🎉', '🎊', '✨', '💰', '🏆', '⭐'];
+      
+      for (let i = 0; i < count; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.textContent = particles[Math.floor(Math.random() * particles.length)];
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.top = Math.random() * 20 + '%';
+        particle.style.fontSize = (Math.random() * 2 + 1) + 'em';
+        particle.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        
+        document.body.appendChild(particle);
+        
+        setTimeout(() => particle.remove(), 3000);
+      }
+    }
+    
+    function updateDisplay() {
+      document.getElementById('credits').textContent = credits;
+      document.getElementById('totalRolls').textContent = totalRolls;
+      document.getElementById('totalWins').textContent = totalWins;
+      document.getElementById('biggestWin').textContent = biggestWin;
+    }
+    
+    // Gráficos
+    let distributionChart, historyChart;
+    
+    function updateCharts() {
+      updateDistributionChart();
+      updateHistoryChart();
+    }
+    
+    function updateDistributionChart() {
+      const ctx = document.getElementById('distributionChart');
+      
+      if (distributionChart) {
+        distributionChart.destroy();
+      }
+      
+      const labels = ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+      const data = resultDistribution.slice(2);  // Ignora índice 0 e 1
+      
+      distributionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Frequência',
+            data: data,
+            backgroundColor: 'rgba(0, 128, 255, 0.6)',
+            borderColor: '#0080ff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { labels: { color: '#00ffff' } }
+          },
+          scales: {
+            x: { ticks: { color: '#00ffff' }, grid: { color: 'rgba(0, 255, 255, 0.1)' } },
+            y: { ticks: { color: '#00ffff' }, grid: { color: 'rgba(0, 255, 255, 0.1)' } }
+          }
+        }
+      });
+    }
+    
+    function updateHistoryChart() {
+      const ctx = document.getElementById('historyChart');
+      
+      if (historyChart) {
+        historyChart.destroy();
+      }
+      
+      const labels = rollHistory.map((_, i) => i + 1);
+      const data = rollHistory.map(h => h.result);
+      
+      historyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Resultado',
+            data: data,
+            borderColor: '#00ffff',
+            backgroundColor: 'rgba(0, 255, 255, 0.2)',
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { labels: { color: '#00ffff' } }
+          },
+          scales: {
+            x: { ticks: { color: '#00ffff' }, grid: { color: 'rgba(0, 255, 255, 0.1)' } },
+            y: { 
+              min: 2,
+              max: 12,
+              ticks: { color: '#00ffff' }, 
+              grid: { color: 'rgba(0, 255, 255, 0.1)' } 
+            }
+          }
+        }
+      });
+    }
+    
+    function toggleTheme() {
+      document.body.classList.toggle('light-mode');
+    }
+    
+    // Inicialização
+    window.onload = () => {
+      connectMQTT();
+      updateCharts();
+      
+      // Carrega dados salvos
+      const savedData = localStorage.getItem('diceGameData');
+      if (savedData) {
+        const data = JSON.parse(savedData);
+        credits = data.credits || 1000;
+        totalRolls = data.totalRolls || 0;
+        totalWins = data.totalWins || 0;
+        biggestWin = data.biggestWin || 0;
+        rollHistory = data.rollHistory || [];
+        resultDistribution = data.resultDistribution || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        updateDisplay();
+        updateCharts();
+      }
+    };
+    
+    // Salva dados ao sair
+    window.onbeforeunload = () => {
+      localStorage.setItem('diceGameData', JSON.stringify({
+        credits,
+        totalRolls,
+        totalWins,
+        biggestWin,
+        rollHistory,
+        resultDistribution
+      }));
+    };
+  </script>
+</body>
+</html>
